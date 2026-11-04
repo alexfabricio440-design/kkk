@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Generador de videos</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Montserrat:wght@900&family=Poppins:wght@800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#f3f1ec;--card:#fff;--ink:#1d1b26;--mute:#6b6878;--line:#dcd8e4;--acc:#5b3df5;--acc2:#fff;--ok:#12805c;--err:#c2331f}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#15131c;--card:#1f1c2a;--ink:#f0eef8;--mute:#9a96ab;--line:#332f44;--acc:#8b75ff;--acc2:#15131c;--ok:#4cc79a;--err:#ff7a66}}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:16px/1.5 "Trebuchet MS","Segoe UI",system-ui,sans-serif;padding:env(safe-area-inset-top,0) 0 env(safe-area-inset-bottom,0)}
+main{max-width:920px;margin:0 auto;padding:20px 16px 60px}
+h1{font-size:1.8rem;margin:.2em 0 .1em;letter-spacing:-.02em}
+h2{font-size:1.05rem;margin:0}
+p.sub{color:var(--mute);margin:0 0 20px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.card{background:var(--card);border:2px dashed var(--line);border-radius:14px;padding:14px;transition:border-color .15s}
+.card.over{border-color:var(--acc)}
+.card small{color:var(--mute);display:block;margin:2px 0 10px}
+.btn{font:inherit;border:0;border-radius:10px;padding:9px 14px;background:var(--ink);color:var(--bg);cursor:pointer}
+.btn:focus-visible,.step:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
+.files{list-style:none;margin:10px 0 0;padding:0;max-height:140px;overflow:auto;font-size:.85rem}
+.files li{display:flex;justify-content:space-between;gap:8px;padding:3px 0;border-top:1px solid var(--line)}
+.files span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.files button{border:0;background:none;color:var(--err);cursor:pointer;font-size:1rem}
+.gen{margin:26px 0;background:var(--card);border-radius:18px;padding:22px;display:flex;flex-wrap:wrap;gap:20px;align-items:center;justify-content:space-between;border:1px solid var(--line)}
+.qty{display:flex;align-items:center;gap:12px}
+.step{width:46px;height:46px;border-radius:50%;border:2px solid var(--ink);background:none;color:var(--ink);font-size:1.5rem;cursor:pointer}
+#qty{font-size:2.6rem;font-weight:700;min-width:2ch;text-align:center}
+.go{font:inherit;font-size:1.2rem;font-weight:700;padding:16px 38px;border:0;border-radius:14px;background:var(--acc);color:var(--acc2);cursor:pointer}
+.go:disabled{opacity:.5;cursor:not-allowed}
+.opts{display:flex;gap:16px;flex-wrap:wrap;color:var(--mute);font-size:.9rem;width:100%}
+.opts select{font:inherit}
+.job{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:10px}
+.bar{height:8px;border-radius:5px;background:var(--line);overflow:hidden;margin:8px 0}
+.bar i{display:block;height:100%;width:0;background:var(--acc)}
+.job video{display:block;max-width:100%;max-height:420px;background:#000;border-radius:10px;margin:8px 0}
+.job a{color:var(--ok);font-weight:700}
+#msg{color:var(--err);min-height:1.4em}
+.note{color:var(--mute);font-size:.85rem}
+</style>
+</head>
+<body>
+<main>
+<h1>Generador de videos</h1>
+<p class="sub">Sube tus clips una vez, elige la cantidad y aprieta Generar.</p>
+
+<div class="grid" id="folders"></div>
+
+<section class="gen">
+  <div class="qty">
+    <button class="step" id="minus" aria-label="Menos">−</button>
+    <div id="qty">1</div>
+    <button class="step" id="plus" aria-label="Más">+</button>
+    <span class="note">videos</span>
+  </div>
+  <button class="go" id="go">Generar</button>
+  <div class="opts">
+    <label>Formato:
+      <select id="fmt"><option value="540x960">Vertical 540×960 (más rápido)</option><option value="720x1280">Vertical 720×1280 (más nítido)</option><option value="1280x720">Horizontal 1280×720</option></select></label>
+    <label>Recorte en cada empalme:
+      <select id="trim"><option value="0">0 s</option><option value="0.1">0.1 s</option><option value="0.2" selected>0.2 s</option><option value="0.3">0.3 s</option><option value="0.5">0.5 s</option></select></label>
+    <label>Subtítulos: <select id="subs"><option value="on" selected>Palabra por palabra</option><option value="off">Sin subtítulos</option></select></label>
+    <label>Estilo: <select id="sty"><option value="clasico">Clásico (blanco con borde)</option><option value="amarillo">Amarillo impacto</option><option value="caja">Caja morada</option><option value="neon">Neón</option><option value="suave">Suave con sombra</option></select></label>
+    <label>Altura: <input type="range" id="ypos" min="20" max="90" value="62"></label>
+    <label>Tamaño: <input type="range" id="sz" min="70" max="150" value="100"></label>
+    <canvas id="pv" width="180" height="320" style="border-radius:10px;border:1px solid var(--line)" aria-label="Vista previa del subtítulo"></canvas>
+    <label>Idioma del audio: <select id="lang"><option value="spanish" selected>Español</option><option value="english">Inglés</option><option value="auto">Automático</option></select></label>
+    <label>Clave de Groq: <input type="password" id="gkey" placeholder="gsk_..." autocomplete="off" style="width:170px;font:inherit"></label>
+  </div>
+  <div id="msg" role="alert" style="width:100%"></div>
+</section>
+
+<div id="jobs"></div>
+<p class="note">Importante: mientras se genera, deja esta pestaña abierta y a la vista (el video se arma cuadro por cuadro y puede tardar más que su duración). Todo se procesa en tu dispositivo y no se sube a ningún lado.</p>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/mp4-muxer@5.1.3/build/mp4-muxer.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mp4box@0.5.2/dist/mp4box.all.min.js"></script>
+<script>
+const FOLDERS=[
+ {id:"hook",name:"Hooks",hint:"Videos de inicio",accept:"video/*"},
+ {id:"fill",name:"Relleno",hint:"Videos del medio",accept:"video/*"},
+ {id:"cta",name:"CTA",hint:"Videos de cierre",accept:"video/*"},
+ {id:"voice",name:"Voces",hint:"Audios ya grabados",accept:"audio/*,video/*"}
+];
+const $=s=>document.querySelector(s);
+let lib={hook:[],fill:[],cta:[],voice:[]};
+let used=new Set();
+
+/* ---- Almacenamiento en el navegador (IndexedDB) ---- */
+const dbp=new Promise((res,rej)=>{const r=indexedDB.open("vidgen",1);r.onupgradeneeded=()=>r.result.createObjectStore("files",{keyPath:"id",autoIncrement:true});r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)});
+async function tx(mode,fn){const db=await dbp;return new Promise((res,rej)=>{const t=db.transaction("files",mode);const r=fn(t.objectStore("files"));t.oncomplete=()=>res(r.result);t.onerror=()=>rej(t.error)})}
+const dbAdd=f=>tx("readwrite",s=>s.add(f));
+const dbPut=f=>tx("readwrite",s=>s.put(f));
+const dbDel=id=>tx("readwrite",s=>s.delete(id));
+const dbAll=()=>tx("readonly",s=>s.getAll());
+
+/* ---- Interfaz de carpetas ---- */
+function drawFolders(){
+  const box=$("#folders");box.innerHTML="";
+  FOLDERS.forEach(f=>{
+    const c=document.createElement("div");c.className="card";
+    c.innerHTML=`<h2>${f.name} (${lib[f.id].length})</h2><small>${f.hint}${f.id==="voice"?" · ✎ opcional":""}</small>
+      <button class="btn">Agregar archivos</button>
+      <input type="file" multiple style="position:absolute;width:1px;height:1px;opacity:0">
+      <ul class="files"></ul>`;
+    const inp=c.querySelector("input");
+    c.querySelector("button").onclick=()=>inp.click();
+    inp.onchange=()=>addFiles(f.id,inp.files);
+    c.ondragover=e=>{e.preventDefault();c.classList.add("over")};
+    c.ondragleave=()=>c.classList.remove("over");
+    c.ondrop=e=>{e.preventDefault();c.classList.remove("over");addFiles(f.id,e.dataTransfer.files)};
+    const ul=c.querySelector("ul");
+    lib[f.id].forEach(it=>{
+      const li=document.createElement("li");
+      const sp=document.createElement("span");sp.textContent=it.name+(it.script?" ✓":"");
+      const b=document.createElement("button");b.textContent="✕";b.title="Quitar";
+      b.onclick=async()=>{await dbDel(it.id);lib[f.id]=lib[f.id].filter(x=>x.id!==it.id);drawFolders()};
+      if(f.id==="voice"){
+        const e=document.createElement("button");e.textContent="✎";e.title="Escribir el texto de esta voz (para subtítulos)";e.style.color="var(--acc)";
+        e.onclick=async()=>{const t=prompt("Escribe el texto EXACTO que dice esta voz (para los subtítulos):",it.script||"");if(t===null)return;it.script=t.trim();try{await dbPut(it)}catch(x){}drawFolders()};
+        li.append(sp,e,b);
+      }else li.append(sp,b);
+      ul.append(li);
+    });
+    box.append(c);
+  });
+}
+async function addFiles(folder,files){
+  const m=$("#msg");m.textContent="";
+  for(const file of Array.from(files)){
+    try{
+      const item={folder,name:file.name,blob:file};
+      item.id=await dbAdd(item);lib[folder].push(item);
+    }catch(e){m.textContent="No se pudo guardar "+file.name+" ("+(e&&e.name||"error")+"). Prueba con un archivo más chico o con otro navegador."}
+  }
+  drawFolders();
+}
+async function init(){
+  try{(await dbAll()).forEach(it=>lib[it.folder]&&lib[it.folder].push(it))}catch(e){$("#msg").textContent="No se pudo abrir el almacenamiento del navegador."}
+  drawFolders();
+}
+
+/* ---- Cantidad ---- */
+let qty=1;
+$("#minus").onclick=()=>{qty=Math.max(1,qty-1);$("#qty").textContent=qty};
+$("#plus").onclick=()=>{qty=Math.min(20,qty+1);$("#qty").textContent=qty};
+
+/* ---- Elegir combinaciones sin repetir ---- */
+const pick=a=>a[Math.floor(Math.random()*a.length)];
+function combo(){
+  for(let t=0;t<40;t++){
+    const hook=pick(lib.hook),cta=pick(lib.cta),voice=pick(lib.voice),key=hook.id+"-"+cta.id+"-"+voice.id;
+    if(!used.has(key)){used.add(key);return{hook,cta,voice}}
+  }
+  used.clear();return{hook:pick(lib.hook),cta:pick(lib.cta),voice:pick(lib.voice)};
+}
+
+/* ---- Utilidades de video ---- */
+function loadVideo(blob){
+  return new Promise((res,rej)=>{
+    const v=document.createElement("video");v.muted=true;v.playsInline=true;v.preload="auto";
+    v.src=URL.createObjectURL(blob);
+    v.onloadeddata=()=>res(v);v.onerror=()=>rej(new Error("No se pudo leer un clip"));
+  });
+}
+async function getDur(it){
+  if(!it._d){
+    let d=null;
+    try{
+      if(window.MP4Box){
+        const ab=await it.blob.arrayBuffer(),file=MP4Box.createFile();
+        const info=await new Promise((res,rej)=>{file.onReady=res;file.onError=rej;ab.fileStart=0;file.appendBuffer(ab);file.flush();setTimeout(()=>rej(0),4000)});
+        const tr=info.videoTracks[0];
+        if(tr&&tr.duration&&tr.timescale)d=tr.duration/tr.timescale-0.04; /* solo la pista de video, sin el audio */
+      }
+    }catch(e){}
+    if(!(d>0)){const v=await loadVideo(it.blob);d=v.duration-0.04;URL.revokeObjectURL(v.src)}
+    it._d=d;
+  }
+  return it._d;
+}
+/* El video dura EXACTAMENTE lo que dura la voz: hook al inicio, CTA al final, relleno en medio (se recorta el último si sobra) */
+async function plan(job,T){
+  const trim=+$("#trim").value;
+  const eff=d=>{const t=Math.min(trim,Math.max(0,(d-0.3)/2));return{t,len:d-2*t}};
+  const h=eff(await getDur(job.hook)),hl=Math.min(h.len,T);
+  const c=eff(await getDur(job.cta)),cl=Math.min(c.len,T-hl);
+  const segs=[{item:job.hook,len:hl,start:h.t}];
+  let mid=T-hl-cl,last=null,guard=0;
+  while(mid>0.05&&guard++<300){
+    let f=pick(lib.fill);
+    if(lib.fill.length>1&&f===last)f=pick(lib.fill.filter(x=>x!==last));
+    const e=eff(await getDur(f));if(!(e.len>0.2))continue;
+    const len=Math.min(e.len,mid);segs.push({item:f,len,start:e.t});mid-=len;last=f;
+  }
+  if(mid>0.5)throw new Error("Los clips de Relleno no se pudieron leer o son muy cortos");
+  if(cl>0.05)segs.push({item:job.cta,len:cl,start:c.t});
+  return segs;
+}
+
+/* ---- Subtítulos palabra por palabra (transcripción con Whisper en el navegador) ---- */
+let curSt=null,asrP=null;
+const say=t=>{if(curSt)curSt.textContent=t};
+function getASR(){
+  if(!asrP)asrP=(async()=>{
+    const {pipeline,env}=await import("https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2");
+    env.allowLocalModels=false;
+    try{env.backends.onnx.wasm.numThreads=1}catch(e){}
+    return pipeline("automatic-speech-recognition","Xenova/whisper-tiny",{progress_callback:p=>{
+      if(p.status==="progress"&&p.progress!=null)say("descargando modelo de subtítulos "+Math.round(p.progress)+"% (solo la primera vez)…")}});
+  })().catch(e=>{asrP=null;throw e});
+  return asrP;
+}
+/* Alineación por texto: tú escribes lo que dice la voz y la app calcula los tiempos con el audio */
+function spread(words,t0,t1){
+  const wt=words.map(w=>{const L=w.replace(/[^\p{L}\p{N}]/gu,"").length||1;const p=/[.!?…]$/.test(w)?4:/[,;:]$/.test(w)?2:0;return{L:Math.max(2,L),p}});
+  const tot=wt.reduce((x,y)=>x+y.L+y.p,0),per=(t1-t0)/tot;let t=t0;
+  return words.map((w,i)=>{const s0=t,e0=t+wt[i].L*per;t=e0+wt[i].p*per;return{w,s:s0,e:e0}});
+}
+function alignScript(text,buf){
+  const d=buf.getChannelData(0),fl=Math.max(1,Math.round(buf.sampleRate*0.02)),env=[];
+  for(let i=0;i+fl<=d.length;i+=fl){let sum=0;for(let j=i;j<i+fl;j++)sum+=d[j]*d[j];env.push(Math.sqrt(sum/fl))}
+  const mx=Math.max(...env),thr=mx*0.06;
+  let a=env.findIndex(x=>x>thr),b=env.length-1;while(b>0&&env[b]<=thr)b--;
+  const t0=Math.max(0,a)*0.02,t1=Math.min(buf.duration,(b+1)*0.02);
+  const words=text.split(/\s+/).filter(Boolean);
+  if(!words.length)throw new Error("el texto está vacío");
+  return spread(words,t0,t1);
+}
+async function getWords(voice,buf){
+  if(voice.script)return alignScript(voice.script,buf);
+  const lang=$("#lang").value;
+  if(voice.words&&voice.wl===lang)return voice.words;
+  const key=(()=>{try{return localStorage.getItem("groqKey")||""}catch(e){return""}})();
+  if(key){
+    say("transcribiendo con Groq…");
+    const fd=new FormData();
+    fd.append("file",voice.blob,voice.name||"voz.mp3");fd.append("model","whisper-large-v3-turbo");
+    fd.append("response_format","verbose_json");fd.append("timestamp_granularities[]","word");
+    if(lang!=="auto")fd.append("language",lang==="spanish"?"es":"en");
+    let r;
+    try{r=await fetch("https://api.groq.com/openai/v1/audio/transcriptions",{method:"POST",headers:{Authorization:"Bearer "+key},body:fd})}
+    catch(e){throw new Error("no se pudo conectar con Groq (revisa tu internet)")}
+    if(!r.ok){let t="";try{t=(await r.json()).error.message}catch(e){}throw new Error("Groq respondió "+r.status+(t?": "+t:""))}
+    const j=await r.json();
+    const ws=(j.words||[]).map(x=>({w:(x.word||"").trim(),s:x.start,e:x.end})).filter(x=>x.w&&x.s!=null);
+    if(!ws.length)throw new Error("Groq no devolvió palabras");
+    voice.words=ws;voice.wl=lang;try{await dbPut(voice)}catch(e){}
+    return ws;
+  }
+  say("preparando audio…");
+  const oc=new OfflineAudioContext(1,Math.ceil(buf.duration*16000),16000),src=oc.createBufferSource();
+  src.buffer=buf;src.connect(oc.destination);src.start();
+  const data=(await oc.startRendering()).getChannelData(0);
+  const asr=await getASR();
+  say("transcribiendo la voz (solo la primera vez por audio)…");
+  const base={task:"transcribe",...(lang!=="auto"?{language:lang}:{}),...(buf.duration>30?{chunk_length_s:30,stride_length_s:5}:{})};
+  let words=[];const errs=[];
+  try{
+    const out=await asr(data,{...base,return_timestamps:"word"});
+    words=(out.chunks||[]).map(c=>({w:(c.text||"").trim(),s:c.timestamp[0],e:c.timestamp[1]})).filter(x=>x.w&&x.s!=null);
+  }catch(e){errs.push(e&&e.message||String(e))}
+  if(!words.length){
+    say("ajustando la transcripción (modo por frases)…");
+    try{
+      const out=await asr(data,{...base,return_timestamps:true});
+      for(const c of out.chunks||[]){
+        const ws=(c.text||"").trim().split(/\s+/).filter(Boolean);
+        if(ws.length)words.push(...spread(ws,c.timestamp[0]||0,c.timestamp[1]!=null?c.timestamp[1]:buf.duration));
+      }
+    }catch(e){errs.push(e&&e.message||String(e))}
+  }
+  if(!words.length)throw new Error("falló la transcripción ("+errs.join(" / ")+")");
+  voice.words=words;voice.wl=lang;
+  try{await dbPut(voice)}catch(e){}
+  return words;
+}
+function prepSubs(words){
+  return words.map((x,i)=>{
+    const n=words[i+1],e=x.e!=null?x.e:x.s+0.3,a=Math.max(0,x.s-0.03);
+    let b=n?Math.min(n.s,e+0.5):e+0.3;if(b<=a)b=a+0.15;
+    const r=x.w.replace(/[.,;:¡!¿?"“”()\[\]]/g,"");return{t:r.toUpperCase(),r,a,b};
+  }).filter(x=>x.t);
+}
+const STY={
+  clasico:{font:"Montserrat",weight:900,size:.11,fill:"#fff",stroke:"#000",sw:.16,up:true},
+  amarillo:{font:"Anton",weight:400,size:.15,fill:"#FFE600",stroke:"#000",sw:.2,up:true},
+  caja:{font:"Poppins",weight:800,size:.095,fill:"#fff",box:"#6d3df5",up:false},
+  neon:{font:"Montserrat",weight:900,size:.105,fill:"#fff",glow:"#00e5ff",up:true},
+  suave:{font:"Poppins",weight:800,size:.09,fill:"#fff",shadow:true,up:false}
+};
+function drawSub(g,W,H,t,subs,o){
+  let cur=null;for(const x of subs){if(t>=x.a&&t<x.b)cur=x}
+  if(!cur)return;
+  const S=STY[o.st]||STY.clasico,txt=S.up?cur.t:cur.r,sz=Math.round(W*S.size*o.size);
+  g.save();g.font=S.weight+" "+sz+'px "'+S.font+'","Arial Black",Impact,system-ui,sans-serif';
+  g.textAlign="center";g.textBaseline="middle";g.lineJoin="round";
+  const wd=g.measureText(txt).width,age=t-cur.a,pad=S.box?sz*0.9:0;
+  const sc=Math.min(1,W*0.92/(wd+pad))*(age<0.08?0.8+0.2*(age/0.08):1);
+  g.translate(W/2,H*o.y);g.scale(sc,sc);
+  if(S.box){
+    const bw=wd+sz*0.9,bh=sz*1.25;g.fillStyle=S.box;g.beginPath();
+    if(g.roundRect)g.roundRect(-bw/2,-bh/2,bw,bh,sz*0.3);else g.rect(-bw/2,-bh/2,bw,bh);
+    g.fill();
+  }
+  if(S.shadow){g.shadowColor="rgba(0,0,0,.65)";g.shadowBlur=sz*0.25;g.shadowOffsetY=sz*0.06}
+  if(S.stroke){g.lineWidth=sz*S.sw;g.strokeStyle=S.stroke;g.strokeText(txt,0,0)}
+  if(S.glow){g.shadowColor=S.glow;g.shadowBlur=sz*0.5;g.fillStyle=S.fill;g.fillText(txt,0,0)}
+  g.fillStyle=S.fill;g.fillText(txt,0,0);g.restore();
+}
+const subOpts=()=>({st:$("#sty").value,y:$("#ypos").value/100,size:$("#sz").value/100});
+function drawPreview(){
+  const c=$("#pv"),g=c.getContext("2d"),gr=g.createLinearGradient(0,0,0,c.height);
+  gr.addColorStop(0,"#2b2a45");gr.addColorStop(1,"#5a4bb5");g.fillStyle=gr;g.fillRect(0,0,c.width,c.height);
+  drawSub(g,c.width,c.height,1,[{t:"ASÍ SE VE",r:"Así se ve",a:0,b:9}],subOpts());
+}
+
+/* ---- Render en vivo (respaldo) ---- */
+async function renderLive({segs,buf,T,subs,subO},W,H,onProg){
+  const canvas=document.createElement("canvas");canvas.width=W;canvas.height=H;
+  const g=canvas.getContext("2d");g.fillStyle="#000";g.fillRect(0,0,W,H);
+  const ac=new (window.AudioContext||window.webkitAudioContext)();await ac.resume();
+  const dest=ac.createMediaStreamDestination();
+  const stream=new MediaStream([...canvas.captureStream(30).getVideoTracks(),...dest.stream.getAudioTracks()]);
+  const mime=["video/mp4;codecs=avc1,mp4a.40.2","video/webm;codecs=vp9,opus","video/webm"].find(m=>MediaRecorder.isTypeSupported(m));
+  if(!mime)throw new Error("Este navegador no puede grabar video. Prueba con Chrome.");
+  const rec=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:5e6});
+  const chunks=[];rec.ondataavailable=e=>e.data.size&&chunks.push(e.data);
+  const vids=[];for(const s of segs)vids.push(await loadVideo(s.item.blob));
+  let cur=null,done=0,alive=true,t0=0;
+  function draw(){
+    if(!alive)return;
+    if(cur&&cur.videoWidth){
+      const s=Math.max(W/cur.videoWidth,H/cur.videoHeight),w=cur.videoWidth*s,h=cur.videoHeight*s;
+      g.drawImage(cur,(W-w)/2,(H-h)/2,w,h);
+    }
+    if(subs)drawSub(g,W,H,ac.currentTime-t0,subs,subO);
+    onProg((done+(cur?cur.currentTime:0))/T);
+    requestAnimationFrame(draw);
+  }
+  const stopped=new Promise(r=>rec.onstop=r);
+  rec.start(500);
+  const src=ac.createBufferSource();src.buffer=buf;src.connect(dest);t0=ac.currentTime;src.start();
+  requestAnimationFrame(draw);
+  for(let i=0;i<vids.length;i++){
+    cur=vids[i];cur.currentTime=segs[i].start||0;await cur.play();
+    await new Promise(r=>{cur.onended=r;const iv=setInterval(()=>{if(cur.currentTime>=(segs[i].start||0)+segs[i].len){clearInterval(iv);r()}},15)});
+    cur.pause();done+=segs[i].len;
+  }
+  alive=false;try{src.stop()}catch(e){}
+  rec.stop();await stopped;ac.close();
+  vids.forEach(v=>URL.revokeObjectURL(v.src));
+  return{blob:new Blob(chunks,{type:mime.split(";")[0]}),ext:mime.startsWith("video/mp4")?"mp4":"webm",mode:"modo en vivo, puede trabarse",dur:T};
+}
+
+/* ---- Render fluido: cuadro por cuadro con WebCodecs ---- */
+const FPS=30;
+function seek(v,t){return new Promise(r=>{
+  const to=setTimeout(done,3000);
+  function done(){clearTimeout(to);v.onseeked=null;(function w(n){if(v.readyState>=2||n>40)r();else setTimeout(()=>w(n+1),25)})(0)}
+  if(Math.abs(v.currentTime-t)<1e-3&&v.readyState>=2){clearTimeout(to);r();return}
+  v.onseeked=done;v.currentTime=t;
+})}
+function findBox(u8,tag){
+  const a=tag.charCodeAt(0),b=tag.charCodeAt(1),c=tag.charCodeAt(2),d=tag.charCodeAt(3);
+  const N=u8.length,E=Math.min(N,2097152);
+  function scan(from,to){
+    for(let i=Math.max(from,4);i<to-4;i++){
+      if(u8[i]===a&&u8[i+1]===b&&u8[i+2]===c&&u8[i+3]===d){
+        const size=((u8[i-4]<<24)|(u8[i-3]<<16)|(u8[i-2]<<8)|u8[i-1])>>>0;
+        if(size>8&&size<8192&&i-4+size<=N)return u8.slice(i+4,i-4+size);
+      }
+    }
+    return null;
+  }
+  return scan(0,E)||scan(Math.max(0,N-E),N)||scan(E,N);
+}
+async function renderSmooth({segs,buf,T,subs,subO},W,H,onProg){
+  if(!window.VideoEncoder||!window.AudioEncoder||!window.Mp4Muxer)throw new Error("sin WebCodecs");
+  const vcfg={codec:"avc1.640028",width:W,height:H,bitrate:5e6,framerate:FPS,hardwareAcceleration:"prefer-hardware"};
+  if(!(await VideoEncoder.isConfigSupported(vcfg)).supported){delete vcfg.hardwareAcceleration;if(!(await VideoEncoder.isConfigSupported(vcfg)).supported)throw new Error("video no soportado")}
+  const ch=Math.min(2,buf.numberOfChannels),sr=buf.sampleRate;
+  let acodec=null;
+  for(const c of ["mp4a.40.2","opus"]){
+    try{if((await AudioEncoder.isConfigSupported({codec:c,sampleRate:sr,numberOfChannels:ch,bitrate:128000})).supported){acodec=c;break}}catch(e){}
+  }
+  if(!acodec)throw new Error("audio no soportado");
+  const muxer=new Mp4Muxer.Muxer({target:new Mp4Muxer.ArrayBufferTarget(),
+    video:{codec:"avc",width:W,height:H},
+    audio:{codec:acodec==="opus"?"opus":"aac",sampleRate:sr,numberOfChannels:ch},fastStart:"in-memory"});
+  let fail=null;
+  const venc=new VideoEncoder({output:(c,m)=>muxer.addVideoChunk(c,m),error:e=>fail=e});venc.configure(vcfg);
+  const aenc=new AudioEncoder({output:(c,m)=>muxer.addAudioChunk(c,m),error:e=>fail=e});
+  aenc.configure({codec:acodec,sampleRate:sr,numberOfChannels:ch,bitrate:128000});
+  const canvas=document.createElement("canvas");canvas.width=W;canvas.height=H;
+  const g=canvas.getContext("2d",{alpha:false});g.imageSmoothingQuality="high";
+  const Ftot=Math.round(T*FPS);let acc=0,prev=0;
+  segs.forEach((s,i)=>{acc+=s.len;const b=i===segs.length-1?Ftot:Math.round(acc*FPS);s.frames=Math.max(0,b-prev);prev=b});
+  let f=0,fastN=0;const notes=[];
+  const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+  function drawSrc(src,sw,sh,rot){
+    g.save();g.translate(W/2,H/2);g.rotate(rot*Math.PI/180);
+    const rw=rot%180?sh:sw,rh=rot%180?sw:sh,sc=Math.max(W/rw,H/rh);
+    g.drawImage(src,-sw*sc/2,-sh*sc/2,sw*sc,sh*sc);g.restore();
+  }
+  function push(){
+    if(subs)drawSub(g,W,H,f/FPS,subs,subO);
+    const fr=new VideoFrame(canvas,{timestamp:Math.round(f*1e6/FPS)});
+    venc.encode(fr,{keyFrame:f%60===0});fr.close();f++;
+  }
+  /* Camino lento (respaldo): ir a cada cuadro */
+  async function seekSeg(i){
+    const v=await loadVideo(segs[i].item.blob);
+    for(let k=0;k<segs[i].frames;k++){
+      if(fail)throw fail;
+      await seek(v,Math.min((segs[i].start||0)+(k+0.5)/FPS,Math.max(0,v.duration-0.02)));
+      drawSrc(v,v.videoWidth,v.videoHeight,0);push();
+      while(venc.encodeQueueSize>30)await sleep(5);
+      if(f%5===0){onProg(f/Ftot);await sleep(0)}
+    }
+    URL.revokeObjectURL(v.src);
+  }
+  /* Camino rápido: decodificar el clip de corrido con el chip de video */
+  async function fastSeg(i){
+    const seg=segs[i];
+    if(!window.VideoDecoder||!window.MP4Box)throw new Error("sin decodificador");
+    const ab=await seg.item.blob.arrayBuffer();
+    const file=MP4Box.createFile();
+    const info=await new Promise((res,rej)=>{file.onReady=res;file.onError=rej;ab.fileStart=0;file.appendBuffer(ab);file.flush();setTimeout(()=>rej(new Error("mp4")),4000)});
+    const tr=info.videoTracks[0];if(!tr)throw new Error("sin pista de video");
+    const entry=file.getTrackById(tr.id).mdia.minf.stbl.stsd.entries[0],box=entry.avcC||entry.hvcC;
+    if(!box)throw new Error("códec no compatible");
+    const tag=entry.avcC?"avcC":"hvcC",desc=findBox(new Uint8Array(ab),tag);if(!desc)throw new Error("no se encontró la configuración del códec");
+    const cfg={codec:tr.codec,codedWidth:tr.video.width,codedHeight:tr.video.height,description:desc};
+    if(!(await VideoDecoder.isConfigSupported(cfg)).supported)throw new Error("decodificador no compatible");
+    const samples=[];file.onSamples=(id,u,ss)=>{for(const x of ss)samples.push(x)};
+    file.setExtractionOptions(tr.id,null,{nbSamples:1e6});file.start();
+    for(let n=0;n<60&&samples.length<tr.nb_samples;n++)await sleep(25);
+    if(!samples.length)throw new Error("sin muestras");
+    const m=tr.matrix||[65536,0,0,0,0,0,0,0,0];
+    const rot=m[0]===0?(m[1]>0?90:270):(m[0]<0?180:0);
+    const sc=samples[0].timescale,c0=Math.min(...samples.map(x=>x.cts)),d0=samples[0].dts;
+    let k=0,P=null,err=null;
+    const dec=new VideoDecoder({output:F=>{
+      const ts=F.timestamp/1e6;
+      while(k<seg.frames&&((seg.start||0)+(k+0.5)/FPS)<ts){const S=P||F;drawSrc(S,S.displayWidth,S.displayHeight,rot);push();k++}
+      if(P)P.close();P=F;
+      if(f%5===0)onProg(f/Ftot);
+    },error:e=>err=e});
+    dec.configure(cfg);
+    for(const x of samples){
+      if(k>=seg.frames||(x.dts-d0)/sc>(seg.start||0)+seg.len+1)break;
+      while(dec.decodeQueueSize>30||venc.encodeQueueSize>30){if(err||fail)break;await sleep(2)}
+      if(err||fail)throw err||fail;
+      dec.decode(new EncodedVideoChunk({type:x.is_sync?"key":"delta",timestamp:Math.round((x.cts-c0)/sc*1e6),duration:Math.round(x.duration/sc*1e6),data:x.data}));
+    }
+    await dec.flush();
+    if(err)throw err;
+    if(!P)throw new Error("sin cuadros");
+    while(k<seg.frames){drawSrc(P,P.displayWidth,P.displayHeight,rot);push();k++}
+    P.close();dec.close();
+  }
+  for(let i=0;i<segs.length;i++){
+    const before=f;
+    try{await fastSeg(i);fastN++}
+    catch(e){
+      if(f!==before||fail)throw e;
+      console.warn("Camino rápido no disponible para este clip:",e);notes.push((segs[i].item.name||"clip")+": "+(e&&e.message||e));
+      await seekSeg(i);
+    }
+  }
+  const maxS=Math.min(buf.length,Math.round(Ftot/FPS*sr)),CH=4096;
+  for(let o=0;o<maxS;o+=CH){
+    const n=Math.min(CH,maxS-o),d=new Float32Array(n*ch);
+    for(let c=0;c<ch;c++)d.set(buf.getChannelData(c).subarray(o,o+n),c*n);
+    const ad=new AudioData({format:"f32-planar",sampleRate:sr,numberOfFrames:n,numberOfChannels:ch,timestamp:Math.round(o/sr*1e6),data:d});
+    aenc.encode(ad);ad.close();
+    while(aenc.encodeQueueSize>8)await sleep(5);
+  }
+  await venc.flush();await aenc.flush();
+  if(fail)throw fail;
+  muxer.finalize();
+  return{blob:new Blob([muxer.target.buffer],{type:"video/mp4"}),ext:"mp4",mode:fastN===segs.length?"modo fluido rápido":"modo fluido",dur:Ftot/FPS,notes};
+}
+
+async function render(job,W,H,onProg){
+  const ac=new (window.AudioContext||window.webkitAudioContext)();
+  let buf;
+  try{buf=await ac.decodeAudioData(await job.voice.blob.arrayBuffer())}
+  catch(e){throw new Error("No se pudo leer el audio de la voz")}
+  ac.close();
+  const T=buf.duration,pre=[];
+  let subs=null;
+  if($("#subs").value==="on"){
+    try{subs=prepSubs(await getWords(job.voice,buf))}
+    catch(e){console.warn(e);pre.push("Sin subtítulos: "+(e&&e.message||e)+" (si persiste, mándale este mensaje a Claude; como último recurso, el botón ✎ en Voces permite escribir el texto)")}
+    say("armando el video…");
+  }
+  if(subs){const S=STY[$("#sty").value]||STY.clasico;try{await document.fonts.load(S.weight+' 40px "'+S.font+'"',"Aa")}catch(e){}}
+  const segs=await plan(job,T),c={segs,buf,T,subs,subO:subOpts()};
+  let r;
+  try{r=await renderSmooth(c,W,H,onProg)}
+  catch(e){console.warn("Render fluido no disponible, uso modo en vivo:",e);onProg(0);r=await renderLive(c,W,H,onProg);r.notes=["Falló el modo fluido: "+(e&&e.message||e)]}
+  r.notes=(r.notes||[]).concat(pre);
+  return r;
+}
+
+/* ---- Botón Generar ---- */
+let busy=false;
+$("#go").onclick=async()=>{
+  const msg=$("#msg");msg.textContent="";
+  const need=FOLDERS.filter(f=>!lib[f.id].length).map(f=>f.name);
+  if(need.length){msg.textContent="Falta agregar archivos en: "+need.join(", ");return}
+  if(busy)return;busy=true;$("#go").disabled=true;
+  const [W,H]=$("#fmt").value.split("x").map(Number);
+  const jobs=[];
+  for(let i=1;i<=qty;i++){
+    const d=document.createElement("div");d.className="job";
+    d.innerHTML=`<b>Video ${i}</b> <span class="st">en espera</span><div class="bar"><i></i></div><span class="dl"></span>`;
+    $("#jobs").prepend(d);jobs.push(d);
+  }
+  const ready=[];
+  for(let i=0;i<qty;i++){
+    const d=jobs[i],st=d.querySelector(".st"),bar=d.querySelector("i");
+    try{
+      curSt=st;st.textContent="grabando…";
+      const t0=Date.now();const r=await render(combo(),W,H,p=>bar.style.width=Math.min(100,p*100)+"%");
+      const url=URL.createObjectURL(r.blob),name=`video-${Date.now()}-${i+1}.${r.ext}`;
+      bar.style.width="100%";st.textContent="listo ✓ — dura "+r.dur.toFixed(1)+" s, tardó "+Math.round((Date.now()-t0)/1000)+" s ("+r.mode+")";if(r.notes&&r.notes.length){const nt=document.createElement("div");nt.className="note";nt.textContent="Detalle: "+r.notes.join(" | ");d.append(nt)}st.style.color="var(--ok)";
+      const a=document.createElement("a");a.href=url;a.download=name;a.textContent="Descargar";
+      const pv=document.createElement("video");pv.src=url;pv.controls=true;pv.playsInline=true;d.insertBefore(pv,d.querySelector(".dl"));d.querySelector(".dl").append(a);ready.push({url,name});
+    }catch(e){st.textContent="error: "+e.message;st.style.color="var(--err)"}
+  }
+  if(ready.length>1){
+    const b=document.createElement("button");b.className="btn";b.textContent="Descargar todos";
+    b.onclick=()=>ready.forEach((r,k)=>setTimeout(()=>{const a=document.createElement("a");a.href=r.url;a.download=r.name;a.click()},k*600));
+    $("#jobs").prepend(b);
+  }
+  busy=false;$("#go").disabled=false;
+};
+const gk=$("#gkey");
+try{gk.value=localStorage.getItem("groqKey")||""}catch(e){}
+gk.oninput=()=>{try{localStorage.setItem("groqKey",gk.value.trim())}catch(e){}};
+["sty","ypos","sz"].forEach(id=>$("#"+id).oninput=drawPreview);
+Promise.all(Object.values(STY).map(S=>document.fonts.load(S.weight+' 40px "'+S.font+'"',"Aa"))).catch(()=>{}).then(drawPreview);
+drawPreview();
+init();
+</script>
+</body>
+</html>
